@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-POLISH_STOPWORDS = [
+STOP_WORDS = [
     "ach", "acz", "aczkolwiek", "aj", "albo", "ale", "ależ", "ani", "aż",
     "bardziej", "bardzo", "bez", "bo", "bowiem", "by", "byli", "bym", "był",
     "była", "było", "były", "być", "będzie", "będą",
@@ -116,7 +116,7 @@ def build_tfidf(
     stop_words=None,
 ):
     if stop_words is None:
-        stop_words = POLISH_STOPWORDS
+        stop_words = STOP_WORDS
     vectorizer = TfidfVectorizer(
         preprocessor=clean_transcript_text,
         lowercase=False,

@@ -1,6 +1,6 @@
 import pandas as pd
 
-CERTAINTY_ORDINAL = {
+CERTAINTY = {
     "definitely certain": 2,
     "moderately certain": 1,
     "I can't assess": 0,
@@ -9,7 +9,7 @@ CERTAINTY_ORDINAL = {
 }
 
 
-DECISION_CANONICAL = {
+DECISION = {
     "eadible": "edible",
     "non-eadible": "poisonous",
     "jadalny": "edible",
@@ -23,8 +23,8 @@ def load_problems_responses(path="data/PROBLEMS_RESPONSES.csv"):
     df["participant_decision_en"] = (
         df["participant_decision_en"].astype("string").str.strip()
     )
-    df["certainty_score"] = df["participant_certaintity_en"].map(CERTAINTY_ORDINAL)
-    df["decision_canon"] = df["participant_decision_en"].map(DECISION_CANONICAL)
+    df["certainty_score"] = df["participant_certaintity_en"].map(CERTAINTY)
+    df["decision_canon"] = df["participant_decision_en"].map(DECISION)
     return df
 
 

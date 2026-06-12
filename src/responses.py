@@ -1,3 +1,7 @@
+"""
+Behavioral features from PROBLEMS_RESPONSES.csv.
+"""
+
 import pandas as pd
 
 CERTAINTY = {
@@ -7,7 +11,6 @@ CERTAINTY = {
     "moderately uncertain": -1,
     "definitely uncertain": -2,
 }
-
 
 DECISION = {
     "eadible": "edible",
@@ -35,6 +38,7 @@ def load_problems(path="data/PROBLEMS_en.csv"):
 
 
 def response_features(responses_df, problems_df):
+    """Aggregate decisions and certainty into four behavioral features per participant."""
     truth = problems_df.set_index("problem_id")["model_class"]
 
     df = responses_df.copy()

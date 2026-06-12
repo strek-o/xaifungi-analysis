@@ -1,60 +1,28 @@
+"""
+Feature extraction for the XAI-FUNGI clustering study.
+"""
+
 import re
 import numpy as np
 import pandas as pd
+import urllib.request
+from pathlib import Path
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-STOP_WORDS = [
-    "ach", "acz", "aczkolwiek", "aj", "albo", "ale", "ależ", "ani", "aż",
-    "bardziej", "bardzo", "bez", "bo", "bowiem", "by", "byli", "bym", "był",
-    "była", "było", "były", "być", "będzie", "będą",
-    "ci", "cię", "ciebie", "co", "cokolwiek", "coś", "czasami", "czasem",
-    "czemu", "czy", "czyli",
-    "daleko", "dla", "dlaczego", "dlatego", "do", "dobrze", "dokąd", "dość",
-    "dużo", "dwa", "dwaj", "dwie", "dwoje", "dziś", "dzisiaj",
-    "gdy", "gdyby", "gdyż", "gdzie", "gdziekolwiek", "gdzieś", "go",
-    "ich", "ile", "im", "inna", "inne", "inny", "innych", "iż",
-    "ja", "ją", "jak", "jakaś", "jakby", "jaki", "jakichś", "jakie", "jakiś",
-    "jakiż", "jakkolwiek", "jako", "je", "jeden", "jedna", "jedno", "jednak",
-    "jednakże", "jego", "jej", "jemu", "jest", "jestem", "jeszcze", "jeśli",
-    "jeżeli", "już",
-    "każdy", "kiedy", "kilka", "kimś", "kto", "ktokolwiek", "ktoś", "która",
-    "które", "którego", "której", "który", "których", "którym", "którzy", "ku",
-    "lat", "lecz", "lub",
-    "ma", "mają", "mało", "mam", "mi", "mimo", "między", "mnie", "mną", "moi",
-    "moim", "moja", "moje", "mój", "mu", "musi", "my",
-    "na", "nad", "nam", "nami", "nas", "nasi", "nasz", "nasza", "nasze",
-    "naszego", "naszych", "natomiast", "natychmiast", "nawet", "nią", "nic",
-    "nich", "nie", "niech", "niego", "niej", "niemu", "nigdy", "nim", "nimi",
-    "niż", "no",
-    "obok", "od", "około", "on", "ona", "one", "oni", "ono", "oraz", "oto",
-    "owszem",
-    "pan", "pana", "pani", "po", "pod", "podczas", "pomimo", "ponad",
-    "ponieważ", "powinien", "powinna", "powinni", "powinno", "poza", "prawie",
-    "przecież", "przed", "przede", "przedtem", "przez", "przy",
-    "raz", "razie", "również",
-    "skąd", "sobie", "sobą", "sposób", "swoje", "są",
-    "ta", "tak", "taka", "taki", "takie", "także", "tam", "te", "tego", "tej",
-    "temu", "ten", "teraz", "też", "to", "tobą", "tobie", "toteż", "trzeba",
-    "tu", "tutaj", "twoi", "twoim", "twoja", "twoje", "twym", "twój", "ty",
-    "tych", "tylko", "tym",
-    "wam", "wami", "was", "wasz", "wasza", "wasze", "we", "według", "wiele",
-    "wielu", "więc", "więcej", "wszyscy", "wszystkich", "wszystkie",
-    "wszystkim", "wszystko", "wtedy", "wy",
-    "za", "zapewne", "zawsze", "ze", "znowu", "znów", "został",
-    "żaden", "żadna", "żadne", "żadnych", "że", "żeby",
-    "anonimizacja", "ns",
-]
+STOPWORDS_URL = (
+    "https://raw.githubusercontent.com/stopwords-iso/stopwords-pl/master/stopwords-pl.txt"
+)
+STOPWORDS_CACHE = Path(__file__).resolve().parent.parent / "data" / "stopwords_pl.txt"
 
+DOMAIN_WORDS = ["anonimizacja", "ns"]
 
 UNCERTAINTY_WORDS = [
-    "chyba", "może", "raczej", "pewnie", "niby",
-    "wydaje", "myślę", "sądzę", "uważam", "przypuszczam", "podejrzewam",
-    "domyślam", "zdaje",
+    "chyba", "może", "raczej", "pewnie", "niby", "wydaje", "myślę",
+    "sądzę", "uważam", "przypuszczam", "podejrzewam", "domyślam", "zdaje",
     "prawdopodobnie", "zapewne", "możliwe", "być może",
     "jakby", "jakoś", "niekoniecznie",
 ]
-
 
 IGNORANCE_WORDS = [
     "nie wiem", "nie rozumiem", "nie potrafię", "nie umiem",
@@ -63,12 +31,27 @@ IGNORANCE_WORDS = [
 ]
 
 
+def get_stopwords(url=STOPWORDS_URL, cache_path=STOPWORDS_CACHE, timeout=15):
+    """Return Polish stop_words from an external source."""
+    if cache_path is not None and Path(cache_path).exists():
+        words = Path(cache_path).read_text(encoding="utf-8").split()
+    else:
+        raw = urllib.request.urlopen(url, timeout=timeout).read().decode("utf-8")
+        words = [w.strip() for w in raw.splitlines() if w.strip()]
+        if cache_path is not None:
+            Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(cache_path).write_text("\n".join(words), encoding="utf-8")
+
+    return sorted(set(words) | set(DOMAIN_WORDS))
+
+
 def count_phrases(text, phrases):
     text_lower = text.lower()
     return sum(text_lower.count(p) for p in phrases)
 
 
 def simple_features(df_text):
+    """Selected linguistic statistics, one row per participant."""
     rows = []
     for _, r in df_text.iterrows():
         text = r["text"]
@@ -107,16 +90,10 @@ def clean_transcript_text(text):
     return _PAREN_PATTERN.sub(" ", text).lower()
 
 
-def build_tfidf(
-    text_df,
-    max_features=2000,
-    ngram_range=(1, 1),
-    min_df=2,
-    max_df=0.95,
-    stop_words=None,
-):
+def build_tfidf(text_df, max_features=2000, ngram_range=(1, 1), min_df=2, max_df=0.95, stop_words=None):
+    """Fit a TF-IDF vectorizer over one concatenated document per participant."""
     if stop_words is None:
-        stop_words = STOP_WORDS
+        stop_words = get_stopwords()
     vectorizer = TfidfVectorizer(
         preprocessor=clean_transcript_text,
         lowercase=False,
@@ -132,6 +109,7 @@ def build_tfidf(
 
 
 def tfidf_svd_features(text_df, n_components=15, random_state=42, **tfidf_kwargs):
+    """TF-IDF reduced to a dense ``n_components``- dim latent space (LSA)."""
     X, _ = build_tfidf(text_df, **tfidf_kwargs)
     max_comp = max(1, min(X.shape) - 1)
     n_components = min(n_components, max_comp)
@@ -145,6 +123,7 @@ def tfidf_svd_features(text_df, n_components=15, random_state=42, **tfidf_kwargs
 
 
 def top_terms_per_cluster(text_df, clusters, top_k=10, **tfidf_kwargs):
+    """Most characteristic TF-IDF terms per cluster."""
     X, vectorizer = build_tfidf(text_df, **tfidf_kwargs)
     terms = np.array(vectorizer.get_feature_names_out())
     X_dense = X.toarray()
@@ -159,3 +138,60 @@ def top_terms_per_cluster(text_df, clusters, top_k=10, **tfidf_kwargs):
             zip(terms[top_idx].tolist(), mean_weights[top_idx].tolist())
         )
     return out
+
+
+def _slide_theme_map(slides_path="data/SLIDES.csv"):
+    slides = pd.read_csv(slides_path)
+    slides = slides.dropna(subset=["maxqda_theme"])
+    return slides.drop_duplicates("slide_id").set_index("slide_id")["maxqda_theme"].to_dict()
+
+
+def slide_topic_features(df_part, slides_path="data/SLIDES.csv", normalize=True):
+    """Words spoken per explanation theme, one row per participant."""
+    theme_map = _slide_theme_map(slides_path)
+    df = df_part.copy()
+    df["n_words"] = df["text"].fillna("").str.split().str.len()
+    df["topic"] = df["slide_id"].map(theme_map).fillna("none")
+
+    wide = (
+        df.groupby(["participant_id", "topic"])["n_words"]
+        .sum()
+        .unstack(fill_value=0)
+        .add_prefix("topic_")
+    )
+    if normalize:
+        row_sums = wide.sum(axis=1)
+        wide = wide.div(row_sums.replace(0, np.nan), axis=0).fillna(0)
+    wide.columns.name = None
+    return wide
+
+
+def topic_none_share(df_part, groups=None):
+    """Share of each participant's words left untagged (``topic_none``)."""
+    df = df_part.copy()
+    df["n_words"] = df["text"].fillna("").str.split().str.len()
+    df["tagged"] = df["slide_id"].notna()
+
+    per_part = df.groupby("participant_id").apply(
+        lambda x: pd.Series(
+            {
+                "words_total": int(x["n_words"].sum()),
+                "words_tagged": int(x.loc[x["tagged"], "n_words"].sum()),
+            }
+        ),
+        include_groups=False,
+    )
+    per_part["share_none"] = (
+            1 - per_part["words_tagged"] / per_part["words_total"].replace(0, np.nan)
+    ).fillna(0)
+
+    if groups is None:
+        return per_part
+
+    grp = pd.Series(groups).reindex(per_part.index)
+    agg = per_part.groupby(grp).agg(
+        words_total=("words_total", "sum"),
+        words_tagged=("words_tagged", "sum"),
+    )
+    agg["share_none"] = (1 - agg["words_tagged"] / agg["words_total"]).round(3)
+    return agg

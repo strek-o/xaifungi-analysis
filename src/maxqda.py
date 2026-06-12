@@ -1,3 +1,7 @@
+"""
+Thematic features extracted from MAXQDA_SUMMARY.csv.
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -14,7 +18,6 @@ VIZ_COLUMNS = [
     "distribution of features",
 ]
 
-
 PAIR_MERGE = {
     "PK_DE_11": "PK_DE_11-12",
     "PK_DE_12": "PK_DE_11-12",
@@ -30,6 +33,7 @@ def load_maxqda_summary(path="data/MAXQDA_SUMMARY.csv", merge_pairs=True):
 
 
 def code_count_features(maxqda_df, normalize=True):
+    """Pivot the long table to one row per participant, one column per code."""
     long_df = maxqda_df.copy()
     long_df["total"] = long_df[VIZ_COLUMNS].sum(axis=1)
     wide = long_df.pivot_table(
@@ -47,6 +51,7 @@ def code_count_features(maxqda_df, normalize=True):
 
 
 def top_codes_per_group(maxqda_df, groups, top_k=10, normalize=True):
+    """Most frequent codes per group."""
     wide = code_count_features(maxqda_df, normalize=normalize)
     grp = pd.Series(groups).reindex(wide.index)
     grouped = wide.groupby(grp).mean()
